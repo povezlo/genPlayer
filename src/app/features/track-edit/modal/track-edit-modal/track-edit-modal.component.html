@@ -1,0 +1,117 @@
+<div class="track-edit-modal">
+  <h2 mat-dialog-title>Edit Track</h2>
+
+  <div *ngIf="loading" class="loading-container">
+    <mat-spinner diameter="40" [testId]="'loading-indicator'"></mat-spinner>
+  </div>
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" [testId]="'track-form'" *ngIf="!loading">
+    <mat-dialog-content>
+      <!-- Заголовок трека -->
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Title</mat-label>
+        <input
+          matInput
+          formControlName="title"
+          [testId]="'input-title'"
+          placeholder="Enter track title">
+        <mat-error *ngIf="titleControl?.errors?.['required']" [testId]="'error-title'">
+          Title is required
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Исполнитель -->
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Artist</mat-label>
+        <input
+          matInput
+          formControlName="artist"
+          [testId]="'input-artist'"
+          placeholder="Enter artist name">
+        <mat-error *ngIf="artistControl?.errors?.['required']" [testId]="'error-artist'">
+          Artist is required
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Альбом -->
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Album</mat-label>
+        <input
+          matInput
+          formControlName="album"
+          [testId]="'input-album'"
+          placeholder="Enter album name (optional)">
+      </mat-form-field>
+
+      <!-- Жанры -->
+      <div class="genres-section">
+        <label class="genre-label">Genres</label>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Select a genre</mat-label>
+          <mat-select [testId]="'genre-selector'">
+            <mat-option
+              *ngFor="let genre of genres"
+              [value]="genre"
+              (click)="selectGenre(genre)">
+              {{ genre }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-chip-set>
+          <mat-chip
+            *ngFor="let genre of genresControl?.value"
+            (removed)="removeGenre(genre)">
+            {{ genre }}
+            <button matChipRemove>
+              <mat-icon>cancel</mat-icon>
+            </button>
+          </mat-chip>
+        </mat-chip-set>
+
+        <mat-error *ngIf="genresControl?.errors?.['required'] && genresControl?.touched" [testId]="'error-genre'">
+          At least one genre is required
+        </mat-error>
+      </div>
+
+      <!-- URL обложки -->
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Cover Image URL</mat-label>
+        <input
+          matInput
+          formControlName="coverImage"
+          [testId]="'input-cover-image'"
+          placeholder="Enter URL to cover image (optional)">
+        <mat-error *ngIf="coverImageControl?.errors?.['pattern']" [testId]="'error-cover-image'">
+          Please enter a valid URL
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Предпросмотр обложки -->
+      <div class="cover-preview" *ngIf="coverImageControl?.value">
+        <img [src]="coverImageControl?.value" alt="Cover preview">
+      </div>
+    </mat-dialog-content>
+
+    <mat-dialog-actions align="end">
+      <button
+        mat-button
+        type="button"
+        [disabled]="submitting"
+        (click)="onCancel()">
+        Cancel
+      </button>
+
+      <button
+        mat-raised-button
+        color="primary"
+        type="submit"
+        [disabled]="submitting"
+        [testId]="'submit-button'">
+        <mat-spinner *ngIf="submitting" diameter="20" class="button-spinner"></mat-spinner>
+        <span *ngIf="!submitting">Save Changes</span>
+      </button>
+    </mat-dialog-actions>
+  </form>
+</div>

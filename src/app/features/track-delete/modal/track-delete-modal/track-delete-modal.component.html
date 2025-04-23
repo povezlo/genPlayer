@@ -1,0 +1,27 @@
+<div class="track-delete-modal">
+  <h2 mat-dialog-title>{{ title }}</h2>
+
+  <mat-dialog-content>
+    <p [testId]="'confirm-dialog'">{{ message }}</p>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button
+      mat-button
+      [disabled]="deleting"
+      (click)="onCancel()"
+      [testId]="'cancel-delete'">
+      Cancel
+    </button>
+
+    <button
+      mat-raised-button
+      color="warn"
+      [disabled]="deleting"
+      (click)="onConfirm()"
+      [testId]="'confirm-delete'">
+      <mat-spinner *ngIf="deleting" diameter="20" class="button-spinner"></mat-spinner>
+      <span *ngIf="!deleting">Delete</span>
+    </button>
+  </mat-dialog-actions>
+</div>

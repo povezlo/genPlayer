@@ -1,0 +1,80 @@
+<div class="audio-player" [testId]="'audio-player-' + track.id">
+  <div class="player-header">
+    <div class="track-info">
+      <div class="track-cover" *ngIf="track.coverImage">
+        <img [src]="track.coverImage" [alt]="track.title">
+      </div>
+      <div class="track-details">
+        <h3 class="track-title">{{ track.title }}</h3>
+        <p class="track-artist">{{ track.artist }}</p>
+      </div>
+    </div>
+
+    <button
+      mat-icon-button
+      class="close-button"
+      (click)="onClosePlayer()">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <div class="player-controls">
+    <button
+      mat-icon-button
+      class="play-pause-button"
+      [testId]="isPlaying ? 'pause-button-' + track.id : 'play-button-' + track.id"
+      (click)="togglePlayPause()">
+      <mat-icon>{{ isPlaying ? 'pause' : 'play_arrow' }}</mat-icon>
+    </button>
+
+    <div class="time-display">{{ formatTime(audioState.currentTime) }}</div>
+
+    <div
+      class="timeline"
+      (click)="onTimelineClick($event)"
+      [testId]="'audio-progress-' + track.id">
+      <div class="timeline-bg"></div>
+      <div
+        class="timeline-progress"
+        [style.width.%]="progressPercent"></div>
+    </div>
+
+    <div class="time-display">{{ formatTime(audioState.duration) }}</div>
+
+    <div class="volume-control">
+      <mat-icon>{{ audioState.volume > 0 ? 'volume_up' : 'volume_off' }}</mat-icon>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.01"
+        [value]="audioState.volume"
+        (input)="onVolumeChange($event)">
+    </div>
+  </div>
+
+  <div class="waveform-container">
+    <div
+      #waveformRef
+      class="waveform"
+      [class.loading]="!waveformReady"></div>
+
+    <div class="loading-overlay" *ngIf="!waveformReady">
+      <mat-spinner diameter="30"></mat-spinner>
+    </div>
+
+    <!-- Индикатор текущей позиции -->
+    <div
+      *ngIf="waveformReady"
+      class="position-indicator"
+      [style.left.%]="progressPercent"></div>
+  </div>
+
+  <!-- Информация о воспроизведении -->
+  <div class="playback-info" *ngIf="waveformReady">
+    <div class="playback-stats">
+      <span class="playback-label">Current position:</span>
+      <span class="playback-value">{{ formatTime(audioState.currentTime) }} / {{ formatTime(audioState.duration) }}</span>
+    </div>
+  </div>
+</div>

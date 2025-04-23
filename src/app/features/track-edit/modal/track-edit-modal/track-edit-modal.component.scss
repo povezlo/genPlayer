@@ -1,0 +1,50 @@
+.track-edit-modal {
+  padding: 16px;
+
+  .loading-container {
+    display: flex;
+    justify-content: center;
+    padding: 40px 0;
+  }
+
+  .full-width {
+    width: 100%;
+  }
+
+  .genres-section {
+    margin-bottom: 20px;
+
+    .genre-label {
+      font-size: 12px;
+      color: rgba(0, 0, 0, 0.6);
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    mat-chip-set {
+      margin-top: 8px;
+      display: block;
+    }
+  }
+
+  .cover-preview {
+    margin-top: 16px;
+
+    img {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+    }
+  }
+
+  mat-dialog-actions {
+    margin-top: 16px;
+    padding: 8px 0;
+  }
+
+  .button-spinner {
+    display: inline-block;
+    margin-right: 8px;
+  }
+}

@@ -1,0 +1,152 @@
+<div class="track-list-widget">
+  <div class="toolbar">
+    <div class="toolbar-main">
+      <button
+        mat-raised-button
+        color="primary"
+        [testId]="'create-track-button'"
+        (click)="openCreateModal()">
+        <mat-icon>add</mat-icon>
+        Create Track
+      </button>
+
+      <div class="search-container">
+        <mat-form-field appearance="outline">
+          <mat-label>Search tracks</mat-label>
+          <input
+            matInput
+            [value]="searchText"
+            (input)="onSearch($event)"
+            [testId]="'search-input'"
+            placeholder="Search by title, artist or album">
+          <mat-icon matSuffix>search</mat-icon>
+        </mat-form-field>
+      </div>
+    </div>
+
+    <div class="toolbar-filters">
+      <mat-form-field appearance="outline">
+        <mat-label>Sort by</mat-label>
+        <mat-select
+          [value]="sortField"
+          (selectionChange)="onSortChange($event)"
+          [testId]="'sort-select'">
+          <mat-option value="title">Title</mat-option>
+          <mat-option value="artist">Artist</mat-option>
+          <mat-option value="album">Album</mat-option>
+          <mat-option value="createdAt">Date Added</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <button
+        mat-icon-button
+        [color]="sortOrder === 'asc' ? 'primary' : ''"
+        (click)="onOrderChange('asc')">
+        <mat-icon>arrow_upward</mat-icon>
+      </button>
+
+      <button
+        mat-icon-button
+        [color]="sortOrder === 'desc' ? 'primary' : ''"
+        (click)="onOrderChange('desc')">
+        <mat-icon>arrow_downward</mat-icon>
+      </button>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Genre</mat-label>
+        <mat-select
+          [value]="selectedGenre"
+          (selectionChange)="onGenreChange($event)"
+          [testId]="'filter-genre'">
+          <mat-option [value]="''">All Genres</mat-option>
+          <mat-option *ngFor="let genre of genres" [value]="genre">{{ genre }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Artist</mat-label>
+        <mat-select
+          [value]="selectedArtist"
+          (selectionChange)="onArtistChange($event)"
+          [testId]="'filter-artist'">
+          <mat-option [value]="''">All Artists</mat-option>
+          <mat-option *ngFor="let artist of artists" [value]="artist">{{ artist }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <div class="toolbar-bulk" *ngIf="tracks.length > 0">
+      <button
+        mat-button
+        color="primary"
+        (click)="toggleSelectMode()"
+        [testId]="'select-mode-toggle'">
+        {{ selectMode ? 'Cancel Selection' : 'Select Tracks' }}
+      </button>
+
+      <ng-container *ngIf="selectMode">
+        <button
+          mat-button
+          (click)="selectAll()"
+          [testId]="'select-all'">
+          {{ selectedTracks.size === tracks.length ? 'Deselect All' : 'Select All' }}
+        </button>
+
+        <button
+          mat-raised-button
+          color="warn"
+          [disabled]="selectedTracks.size === 0"
+          (click)="deleteBulk()"
+          [testId]="'bulk-delete-button'">
+          Delete Selected ({{ selectedTracks.size }})
+        </button>
+      </ng-container>
+    </div>
+  </div>
+
+  <div *ngIf="loading" class="loading-container" [testId]="'loading-tracks'">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+
+  <div class="tracks-grid" *ngIf="!loading && tracks.length > 0">
+    <app-track-card
+      *ngFor="let track of tracks"
+      [track]="track"
+      [selectMode]="selectMode"
+      [selected]="selectedTracks.has(track.id)"
+      (edit)="openEditModal($event)"
+      (delete)="openDeleteModal($event)"
+      (upload)="openUploadModal($event)"
+      (select)="onTrackSelect($event)"
+      (play)="onTrackPlay($event)">
+    </app-track-card>
+  </div>
+
+  <div *ngIf="!loading && tracks.length === 0" class="empty-state">
+    <mat-icon class="empty-icon">music_off</mat-icon>
+    <h3>No tracks found</h3>
+    <p>Try changing your search or create a new track.</p>
+    <button
+      mat-raised-button
+      color="primary"
+      (click)="openCreateModal()">
+      Create Track
+    </button>
+  </div>
+
+  <mat-paginator
+    *ngIf="pagination.total > 0"
+    [testId]="'pagination'"
+    [length]="pagination.total"
+    [pageSize]="pagination.limit"
+    [pageIndex]="pagination.page"
+    [pageSizeOptions]="[5, 10, 25, 50]"
+    (page)="onPageChange($event)">
+  </mat-paginator>
+
+  <app-track-player
+    *ngIf="currentPlayingTrack"
+    [track]="currentPlayingTrack"
+  >
+  </app-track-player>
+</div>

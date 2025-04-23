@@ -1,0 +1,75 @@
+<div class="track-upload-modal">
+  <h2 mat-dialog-title>Upload Audio File</h2>
+
+  <mat-dialog-content>
+    <div class="track-info">
+      <strong>Track:</strong> {{ data.track.title }}
+      <br>
+      <strong>Artist:</strong> {{ data.track.artist }}
+    </div>
+
+    <div class="upload-section">
+      <div *ngIf="hasExistingFile" class="existing-file">
+        <div class="file-info">
+          <mat-icon>music_note</mat-icon>
+          <span>{{ getFilename() }}</span>
+        </div>
+
+        <button
+          mat-raised-button
+          color="warn"
+          [disabled]="uploading"
+          (click)="deleteFile()">
+          <mat-icon>delete</mat-icon>
+          Remove File
+        </button>
+      </div>
+
+      <div class="file-upload" *ngIf="!hasExistingFile">
+        <div class="upload-box" [class.has-file]="file">
+          <input
+            type="file"
+            #fileInput
+            (change)="onFileSelected($event)"
+            accept="audio/*"
+            [disabled]="uploading">
+
+          <div class="upload-content" *ngIf="!file" (click)="fileInput.click()">
+            <mat-icon>cloud_upload</mat-icon>
+            <p>Click to select an audio file or drag and drop here</p>
+            <p class="supported-formats">Supported formats: MP3, WAV, OGG</p>
+          </div>
+
+          <div class="file-info" *ngIf="file">
+            <mat-icon>music_note</mat-icon>
+            <span>{{ file.name }}</span>
+            <span class="file-size">({{ (file.size / 1024 / 1024).toFixed(2) }} MB)</span>
+          </div>
+        </div>
+
+        <div *ngIf="error" class="error-message" [testId]="'error-upload'">
+          {{ error }}
+        </div>
+      </div>
+    </div>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button
+      mat-button
+      [disabled]="uploading"
+      (click)="onCancel()">
+      Cancel
+    </button>
+
+    <button
+      *ngIf="!hasExistingFile"
+      mat-raised-button
+      color="primary"
+      [disabled]="!file || uploading"
+      (click)="uploadFile()">
+      <mat-spinner *ngIf="uploading" diameter="20" class="button-spinner"></mat-spinner>
+      <span *ngIf="!uploading">Upload</span>
+    </button>
+  </mat-dialog-actions>
+</div>
