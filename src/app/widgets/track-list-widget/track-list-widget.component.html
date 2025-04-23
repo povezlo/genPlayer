@@ -147,6 +147,7 @@
   <app-track-player
     *ngIf="currentPlayingTrack"
     [track]="currentPlayingTrack"
+    (close)="onStopPlayback()"
   >
   </app-track-player>
 </div>

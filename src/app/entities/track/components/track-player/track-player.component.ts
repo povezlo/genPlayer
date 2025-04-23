@@ -2,7 +2,7 @@ import {
   AfterViewInit,
   ChangeDetectionStrategy, ChangeDetectorRef,
   Component, DestroyRef, ElementRef,
-  EventEmitter, inject,
+  EventEmitter, HostListener, inject,
   Input,
   OnDestroy,
   OnInit,
@@ -51,6 +51,13 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
     private cdr: ChangeDetectorRef
   ) {}
 
+  @HostListener('window:beforeunload')
+  public beforeUnload(): void {
+    if (this.audioState.isPlaying) {
+      this.audioService.stop();
+    }
+  }
+
   public ngOnInit(): void {
     this.audioService.audioState$
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -84,7 +91,13 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
 
   public ngOnDestroy(): void {
     if (this.wavesurfer) {
+      this.wavesurfer.pause();
       this.wavesurfer.destroy();
+      this.wavesurfer = null;
+    }
+
+    if (this.audioState.isPlaying && this.audioState.track?.id === this.track.id) {
+      this.audioService.stop();
     }
   }
 
@@ -94,33 +107,9 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    // Получаем полный URL к аудиофайлу
     const audioFileUrl = this.getFullAudioUrl(this.track.audioFile);
     console.log('WaveSurfer loading from URL:', audioFileUrl);
 
-    // Сначала проверяем доступность файла
-    fetch(audioFileUrl, { method: 'HEAD' })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`File not accessible, status: ${response.status}`);
-        }
-        return response;
-      })
-      .then(() => {
-        // Файл доступен, создаем WaveSurfer
-        this.createWaveSurfer(audioFileUrl);
-      })
-      .catch(error => {
-        console.error('Error checking audio file:', error);
-        // Уведомляем пользователя о проблеме
-        const errorEvent = new CustomEvent('wavesurfer-error', {
-          detail: { message: `File not available: ${error.message}` }
-        });
-        this.waveformRef.nativeElement.dispatchEvent(errorEvent);
-      });
-  }
-
-  private createWaveSurfer(url: string): void {
     try {
       this.wavesurfer = WaveSurfer.create({
         container: this.waveformRef.nativeElement,
@@ -138,7 +127,6 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
         backend: 'WebAudio'
       });
 
-      // Обработчики событий
       this.wavesurfer.on('ready', () => {
         console.log('WaveSurfer is ready');
         this.waveformReady = true;
@@ -149,12 +137,10 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
         console.error('WaveSurfer error:', error);
       });
 
-      // Для wavesurfer v6
       this.wavesurfer.on('interaction', () => {
         this.dragging = true;
       });
 
-      // Используем приведение типов для обхода проблем с TypeScript
       (this.wavesurfer as any).on('seek', (position: number) => {
         console.log('WaveSurfer seek event:', position);
         if (this.audioState.track?.id === this.track.id) {
@@ -167,28 +153,28 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
         }, 100);
       });
 
-      // Загружаем аудиофайл
-      this.wavesurfer.load(url);
+      this.wavesurfer.load(audioFileUrl);
     } catch (error) {
       console.error('Error creating WaveSurfer:', error);
     }
   }
 
   public togglePlayPause(): void {
-    console.log('Toggle play/pause clicked for track:', this.track.id);
-
     if (this.audioState.track?.id !== this.track.id) {
-      console.log('Current track is not active, starting playback');
       this.audioService.playTrack(this.track);
     } else {
-      console.log('Current track is active, toggling play/pause');
       this.audioService.togglePlayPause();
     }
   }
 
   public onClosePlayer(): void {
-    if (this.audioState.track?.id === this.track.id) {
-      this.audioService.stop();
+    this.audioService.stop();
+
+    if (this.wavesurfer) {
+      this.wavesurfer.pause();
+      if (typeof this.wavesurfer.stop === 'function') {
+        this.wavesurfer.stop();
+      }
     }
     this.close.emit();
   }

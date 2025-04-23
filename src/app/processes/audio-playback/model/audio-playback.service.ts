@@ -190,12 +190,20 @@ export class AudioPlaybackService {
   public stop(): void {
     if (!this.audioElement) return;
 
-    this.audioElement.pause();
-    this.audioElement.currentTime = 0;
-    this.updateState({
-      isPlaying: false,
-      currentTime: 0
-    });
+    try {
+      this.audioElement.pause();
+      this.audioElement.src = '';
+      this.audioElement.load();
+      this.audioElement.currentTime = 0;
+
+      this.updateState({
+        isPlaying: false,
+        currentTime: 0,
+        track: null
+      });
+    } catch (error) {
+      console.error('Error stopping audio:', error);
+    }
   }
 
   public seek(time: number): void {
@@ -266,5 +274,41 @@ export class AudioPlaybackService {
       return audioFilePath;
     }
     return this.apiConfig.getUrl(`files/${audioFilePath}`);
+  }
+
+  public isPlaying(): boolean {
+    return this.audioStateSubject.value.isPlaying;
+  }
+
+// Метод для полной очистки и сброса аудиоплеера
+  public reset(): void {
+    if (this.audioElement) {
+      this.audioElement.pause();
+      this.audioElement.src = '';
+      this.audioElement.load();
+
+      // Сбрасываем все слушатели событий
+      this.audioElement.onloadedmetadata = null;
+      this.audioElement.ontimeupdate = null;
+      this.audioElement.onended = null;
+      this.audioElement.onerror = null;
+
+      // Удаляем ссылку на аудиоэлемент
+      this.audioElement = null;
+
+      // Создаем новый аудиоэлемент
+      this.initAudio();
+    }
+
+    // Сбрасываем состояние
+    this.updateState({
+      track: null,
+      isPlaying: false,
+      currentTime: 0,
+      duration: 0,
+      error: null
+    });
+
+    console.log('Audio player has been completely reset');
   }
 }

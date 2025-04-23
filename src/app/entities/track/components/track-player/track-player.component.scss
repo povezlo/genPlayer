@@ -4,6 +4,10 @@
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
   padding: 16px;
   margin-top: 20px;
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  right: 20px;
 
   .player-header {
     display: flex;
@@ -49,15 +53,17 @@
     display: flex;
     align-items: center;
     margin-bottom: 16px;
+    background: black;
 
     .play-pause-button {
-      margin-right: 8px;
+      margin-right: 8px
     }
 
     .time-display {
       font-size: 12px;
       min-width: 40px;
       text-align: center;
+      color: white;
     }
 
     .timeline {
@@ -67,6 +73,7 @@
       border-radius: 4px;
       position: relative;
       cursor: pointer;
+      color: white;
 
       .timeline-bg {
         position: absolute;
@@ -101,6 +108,7 @@
       input[type="range"] {
         width: 80px;
         height: 4px;
+        background: white;
       }
     }
   }
@@ -163,25 +171,12 @@
     }
   }
 }
+.close-button {
+  margin-left: auto;
+  background-color: rgba(0, 0, 0, 0.05);
+  transition: background-color 0.2s;
 
-// Улучшенные стили для wavesurfer.js
-::ng-deep {
-  wave {
-    overflow: hidden !important;
-  }
-
-  .wavesurfer-region {
-    z-index: 3;
-  }
-
-  // Стили для подсветки текущей позиции
-  .wavesurfer-cursor {
-    border-radius: 50%;
-    background: rgba(244, 67, 54, 0.7);
-    width: 10px !important;
-    height: 10px !important;
-    margin-left: -5px !important;
-    margin-top: -5px !important;
-    z-index: 5;
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.1);
   }
 }

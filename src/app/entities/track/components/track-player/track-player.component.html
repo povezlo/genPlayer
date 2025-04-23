@@ -13,6 +13,7 @@
     <button
       mat-icon-button
       class="close-button"
+      style="background: #898989"
       (click)="onClosePlayer()">
       <mat-icon>close</mat-icon>
     </button>
@@ -42,7 +43,7 @@
     <div class="time-display">{{ formatTime(audioState.duration) }}</div>
 
     <div class="volume-control">
-      <mat-icon>{{ audioState.volume > 0 ? 'volume_up' : 'volume_off' }}</mat-icon>
+      <mat-icon style="color: white">{{ audioState.volume > 0 ? 'volume_up' : 'volume_off' }}</mat-icon>
       <input
         type="range"
         min="0"

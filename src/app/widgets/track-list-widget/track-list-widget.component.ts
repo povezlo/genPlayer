@@ -308,6 +308,12 @@ export class TrackListWidgetComponent implements OnInit {
   }
 
   public onStopPlayback(): void {
+    console.log('Stopping playback and closing player');
+
+    // Полностью сбрасываем аудиоплеер
+    this.audioService.reset();
+
+    // Убираем ссылку на текущий трек, чтобы скрыть плеер
     this.currentPlayingTrack = null;
     this.cdr.markForCheck();
   }
