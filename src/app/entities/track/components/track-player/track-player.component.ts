@@ -55,19 +55,31 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
     this.audioService.audioState$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(state => {
+        console.log('Audio state in player:', state);
         this.audioState = state;
-        this.cdr.markForCheck();
 
+        // Обновляем состояние wavesurfer только если трек совпадает и загружен
         if (this.wavesurfer && this.waveformReady && !this.dragging) {
-          if (state.track?.id === this.track.id) {
-            this.wavesurfer.seekTo(state.currentTime / Math.max(state.duration, 1));
+          if (state.track?.id === this.track.id && state.duration > 0) {
+            const position = state.currentTime / Math.max(state.duration, 0.1);
+
+            try {
+              if (position >= 0 && position <= 1) {
+                this.wavesurfer.seekTo(position);
+              }
+            } catch (error) {
+              console.error('Error seeking wavesurfer:', error);
+            }
           }
         }
+
+        this.cdr.markForCheck();
       });
   }
 
-  public async ngAfterViewInit(): Promise<void> {
-    await this.initWaveSurfer();
+
+  public ngAfterViewInit(): void {
+    this.initWaveSurfer();
   }
 
   public ngOnDestroy(): void {
@@ -76,56 +88,100 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  private async initWaveSurfer(): Promise<void> {
-    if (!this.track.audioFile) return;
+  private initWaveSurfer(): void {
+    if (!this.track.audioFile) {
+      console.error('Track has no audio file, cannot initialize wavesurfer');
+      return;
+    }
 
-    this.wavesurfer = WaveSurfer.create({
-      container: this.waveformRef.nativeElement,
-      height: 80,
-      waveColor: '#9e9e9e',
-      progressColor: '#1976d2',
-      cursorColor: '#f44336',
-      cursorWidth: 2,
-      barWidth: 2,
-      barGap: 1,
-      barRadius: 2,
-      normalize: true,
-      minPxPerSec: 50,
-      fillParent: true,
-      backend: 'WebAudio',
-      autoplay: true,
-    });
-
+    // Получаем полный URL к аудиофайлу
     const audioFileUrl = this.getFullAudioUrl(this.track.audioFile);
+    console.log('WaveSurfer loading from URL:', audioFileUrl);
 
-    console.log('Loading audio file from:', audioFileUrl);
-    await this.wavesurfer.load(audioFileUrl);
+    // Сначала проверяем доступность файла
+    fetch(audioFileUrl, { method: 'HEAD' })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`File not accessible, status: ${response.status}`);
+        }
+        return response;
+      })
+      .then(() => {
+        // Файл доступен, создаем WaveSurfer
+        this.createWaveSurfer(audioFileUrl);
+      })
+      .catch(error => {
+        console.error('Error checking audio file:', error);
+        // Уведомляем пользователя о проблеме
+        const errorEvent = new CustomEvent('wavesurfer-error', {
+          detail: { message: `File not available: ${error.message}` }
+        });
+        this.waveformRef.nativeElement.dispatchEvent(errorEvent);
+      });
+  }
 
-    this.wavesurfer.on('ready', () => {
-      this.waveformReady = true;
-      this.cdr.markForCheck();
-    });
+  private createWaveSurfer(url: string): void {
+    try {
+      this.wavesurfer = WaveSurfer.create({
+        container: this.waveformRef.nativeElement,
+        height: 80,
+        waveColor: '#9e9e9e',
+        progressColor: '#1976d2',
+        cursorColor: '#f44336',
+        cursorWidth: 2,
+        barWidth: 2,
+        barGap: 1,
+        barRadius: 2,
+        normalize: true,
+        minPxPerSec: 50,
+        fillParent: true,
+        backend: 'WebAudio'
+      });
 
-    this.wavesurfer.on('interaction', () => {
-      this.dragging = true;
-    });
+      // Обработчики событий
+      this.wavesurfer.on('ready', () => {
+        console.log('WaveSurfer is ready');
+        this.waveformReady = true;
+        this.cdr.markForCheck();
+      });
 
-    this.wavesurfer.on('seeking', (position: number) => {
-      if (this.audioState.track?.id === this.track.id) {
-        const seekTime = position * this.audioState.duration;
-        this.audioService.seek(seekTime);
-      }
+      this.wavesurfer.on('error', error => {
+        console.error('WaveSurfer error:', error);
+      });
 
-      setTimeout(() => {
-        this.dragging = false;
-      }, 100);
-    });
+      // Для wavesurfer v6
+      this.wavesurfer.on('interaction', () => {
+        this.dragging = true;
+      });
+
+      // Используем приведение типов для обхода проблем с TypeScript
+      (this.wavesurfer as any).on('seek', (position: number) => {
+        console.log('WaveSurfer seek event:', position);
+        if (this.audioState.track?.id === this.track.id) {
+          const seekTime = position * this.audioState.duration;
+          this.audioService.seek(seekTime);
+        }
+
+        setTimeout(() => {
+          this.dragging = false;
+        }, 100);
+      });
+
+      // Загружаем аудиофайл
+      this.wavesurfer.load(url);
+    } catch (error) {
+      console.error('Error creating WaveSurfer:', error);
+    }
   }
 
   public togglePlayPause(): void {
+    console.log('Toggle play/pause clicked for track:', this.track.id);
+
     if (this.audioState.track?.id !== this.track.id) {
+      console.log('Current track is not active, starting playback');
       this.audioService.playTrack(this.track);
     } else {
+      console.log('Current track is active, toggling play/pause');
       this.audioService.togglePlayPause();
     }
   }
