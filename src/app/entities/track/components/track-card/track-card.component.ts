@@ -86,18 +86,24 @@ export class TrackCardComponent implements OnInit {
 
   public onPlay(): void {
     if (this.track.audioFile) {
-      // Сначала проверим, воспроизводится ли этот трек сейчас
+      // Check if this track is currently playing
       const isThisTrackCurrentlyPlaying = this.isCurrentlyPlaying;
 
+      // Check if this track is already loaded in the audio service but paused
+      const isThisTrackLoadedButPaused = this.audioService.isCurrentTrack(this.track.id) && !this.audioService.isPlaying();
+
       if (isThisTrackCurrentlyPlaying) {
-        // Если трек уже воспроизводится, ставим на паузу
+        // If the track is currently playing, pause it
         this.audioService.pause();
+      } else if (isThisTrackLoadedButPaused) {
+        // If this track is already loaded but paused, just toggle play/pause without restarting
+        this.audioService.togglePlayPause();
+        // Still need to emit the play event in case the player UI needs to be shown
+        this.play.emit(this.track);
       } else {
-        // Если воспроизводится другой трек или ничего не воспроизводится,
-        // запускаем выбранный трек принудительно
+        // If it's a different track or nothing is loaded, start playing this track from the beginning
         this.audioService.playTrack(this.track);
-        // Эмитим событие play для родительского компонента,
-        // чтобы он знал, что нужно отобразить плеер для этого трека
+        // Emit play event so parent component can show the player
         this.play.emit(this.track);
       }
     }

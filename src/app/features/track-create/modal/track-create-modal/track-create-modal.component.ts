@@ -3,7 +3,7 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { COMMA, ENTER } from '@angular/cdk/keycodes';
 import { NgForOf, NgIf } from '@angular/common';
 import { MatDialogActions, MatDialogContent, MatDialogRef, MatDialogTitle } from '@angular/material/dialog';
-import { MatChip, MatChipInputEvent, MatChipSet } from '@angular/material/chips';
+import {MatChip, MatChipInputEvent, MatChipRemove, MatChipSet} from '@angular/material/chips';
 import { MatProgressSpinner} from '@angular/material/progress-spinner';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
@@ -31,6 +31,7 @@ import { GenreService, TrackService } from '../../../../entities';
     MatOption,
     MatChipSet,
     MatChip,
+    MatChipRemove,
     NgForOf,
     MatIcon,
     MatError,
@@ -108,6 +109,7 @@ export class TrackCreateModalComponent implements OnInit {
   }
 
   public removeGenre(genre: string): void {
+    console.log('removeGenre', genre);
     const currentGenres = this.form.get('genres')?.value as string[] || [];
     const updatedGenres = currentGenres.filter(g => g !== genre);
     this.form.get('genres')?.setValue(updatedGenres);

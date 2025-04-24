@@ -45,6 +45,7 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
   private lastVolume: number = 0;
   private initializationInProgress = false;
   private componentDestroyed = false;
+  private pendingPlayback = false;
 
   private destroyRef = inject(DestroyRef);
   private apiConfig = inject(ApiConfigService);
@@ -72,7 +73,15 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(state => {
         if (!this.audioState.track || state.track?.id === this.track.id) {
+          const wasPlaying = this.audioState.isPlaying;
           this.audioState = state;
+
+          // If playback started but waveform isn't ready yet, pause the audio and set the flag
+          if (state.isPlaying && !this.waveformReady && state.track?.id === this.track.id) {
+            console.log('Audio started playing but waveform is not ready yet, pausing temporarily');
+            this.audioService.pause();
+            this.pendingPlayback = true;
+          }
 
           if (this.wavesurfer && this.waveformReady && !this.dragging) {
             if (state.track?.id === this.track.id && state.duration > 0) {
@@ -134,7 +143,7 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     if (this.initializationInProgress) {
-      console.log('Инициализация WaveSurfer уже выполняется, пропускаем');
+      console.log('Initialization of WaveSurfer is already in progress, skip it');
       return;
     }
 
@@ -190,6 +199,14 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
         }
 
         this.initializationInProgress = false;
+        if (this.pendingPlayback) {
+          console.log('Waveform is ready, resuming pending playback');
+          this.pendingPlayback = false;
+          setTimeout(() => {
+            this.audioService.play();
+          }, 100);
+        }
+
         this.cdr.markForCheck();
       });
 
@@ -220,7 +237,7 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
 
       setTimeout(() => {
         if (!this.waveformReady && !this.componentDestroyed) {
-          console.warn('Таймаут загрузки WaveSurfer - возможно, проблемы с загрузкой аудиофайла');
+          console.warn('WaveSurfer download timeout - possibly problems with downloading the audio file');
           this.initializationInProgress = false;
         }
       }, 10000);
@@ -228,11 +245,19 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
       console.error('Error creating WaveSurfer:', error);
       this.waveformReady = false;
       this.initializationInProgress = false;
+      this.pendingPlayback = false;
       this.cdr.markForCheck();
     }
   }
 
   public togglePlayPause(): void {
+    if (!this.waveformReady) {
+      console.log('Waveform not ready yet, setting pending playback');
+      this.pendingPlayback = true;
+      this.cdr.markForCheck();
+      return;
+    }
+
     if (this.audioState.track?.id !== this.track.id) {
       this.audioService.playTrack(this.track);
     } else {
@@ -256,11 +281,9 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
 
   public toggleMute(): void {
     if (this.audioState.volume > 0) {
-      // Store the current volume before muting
       this.lastVolume = this.audioState.volume;
       this.audioService.setVolume(0);
     } else {
-      // Restore the previous volume, or default to 0.7 if it was 0
       const volumeToRestore = this.lastVolume || 0.7;
       this.audioService.setVolume(volumeToRestore);
     }
@@ -271,7 +294,6 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
     const volume = parseFloat(input.value);
     this.audioService.setVolume(volume);
 
-    // Update the lastVolume if we're not muted
     if (volume > 0) {
       this.lastVolume = volume;
     }

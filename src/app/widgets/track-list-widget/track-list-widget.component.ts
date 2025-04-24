@@ -226,6 +226,11 @@ export class TrackListWidgetComponent implements OnInit {
 
     dialogRef.afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(result => {
       if (result) {
+        if (this.currentPlayingTrack && this.currentPlayingTrack.id === track.id) {
+          console.log('Deleted track was playing, stopping playback');
+          this.onStopPlayback();
+        }
+
         this.fetchTracks();
         this.showSnackBar('Track deleted successfully');
       }
@@ -276,7 +281,8 @@ export class TrackListWidgetComponent implements OnInit {
       width: '400px',
       data: {
         bulk: true,
-        count: this.selectedTracks.size
+        count: this.selectedTracks.size,
+        trackIds: Array.from(this.selectedTracks)
       }
     });
 
@@ -284,7 +290,6 @@ export class TrackListWidgetComponent implements OnInit {
       if (result) {
         this.submitting = true;
 
-        // After confirming, apply optimistic updates
         const trackIdsToDelete = Array.from(this.selectedTracks);
 
         this.trackService.deleteTracks(trackIdsToDelete)
@@ -299,7 +304,6 @@ export class TrackListWidgetComponent implements OnInit {
             next: (response) => {
               this.selectedTracks.clear();
 
-              // No need to fetch tracks - optimistic updates will handle the UI
               const successMessage = `Successfully deleted ${response.success.length} tracks`;
               this.showSnackBar(successMessage);
 
@@ -320,15 +324,12 @@ export class TrackListWidgetComponent implements OnInit {
   public onTrackPlay(track: Track): void {
     console.log('Track play requested:', track.title);
 
-    // Check if this is the same track that's already playing
     const isSameTrack = this.currentPlayingTrack && this.currentPlayingTrack.id === track.id;
 
-    // If it's a different track, switch to the new one
     if (!isSameTrack) {
       console.log('Switching to new track:', track.title);
       this.currentPlayingTrack = track;
 
-      // Make sure the audio service knows about the new track
       this.audioService.playTrack(track);
     }
 
@@ -338,16 +339,13 @@ export class TrackListWidgetComponent implements OnInit {
   public onStopPlayback(): void {
     console.log('Stopping playback and closing player');
 
-    // Полностью сбрасываем аудиоплеер
     this.audioService.reset();
 
-    // Убираем ссылку на текущий трек, чтобы скрыть плеер
     this.currentPlayingTrack = null;
     this.cdr.markForCheck();
   }
 
   private applyTrackFilters(tracks: Track[]): void {
-    // Filter by genre if selected
     let filteredTracks = tracks;
     if (this.selectedGenre) {
       filteredTracks = filteredTracks.filter(track =>
@@ -355,14 +353,12 @@ export class TrackListWidgetComponent implements OnInit {
       );
     }
 
-    // Filter by artist if selected
     if (this.selectedArtist) {
       filteredTracks = filteredTracks.filter(track =>
         track.artist === this.selectedArtist
       );
     }
 
-    // Filter by search text
     if (this.searchText) {
       const searchLower = this.searchText.toLowerCase();
       filteredTracks = filteredTracks.filter(track =>
@@ -372,7 +368,6 @@ export class TrackListWidgetComponent implements OnInit {
       );
     }
 
-    // Apply sorting
     filteredTracks.sort((a, b) => {
       let valA: any, valB: any;
 
@@ -400,12 +395,10 @@ export class TrackListWidgetComponent implements OnInit {
       return this.sortOrder === 'asc' ? compareResult : -compareResult;
     });
 
-    // Handle pagination
     const startIndex = this.pagination.page * this.pagination.limit;
     const endIndex = startIndex + this.pagination.limit;
     this.tracks = filteredTracks.slice(startIndex, endIndex);
 
-    // Update pagination metadata
     this.pagination.total = filteredTracks.length;
     this.pagination.totalPages = Math.ceil(filteredTracks.length / this.pagination.limit);
   }

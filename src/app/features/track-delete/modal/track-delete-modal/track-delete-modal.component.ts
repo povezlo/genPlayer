@@ -13,6 +13,7 @@ import {MatButton} from '@angular/material/button';
 import {MatProgressSpinner} from '@angular/material/progress-spinner';
 import {NgIf} from '@angular/common';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {AudioPlaybackService} from '../../../../processes';
 
 interface DialogData {
   track?: Track;
@@ -40,6 +41,7 @@ export class TrackDeleteModalComponent {
   public deleting = false;
 
   private trackService = inject(TrackService);
+  private audioService = inject(AudioPlaybackService);
   private toast = inject(ToastService);
   private destroyRef = inject(DestroyRef);
   private dialogRef = inject(MatDialogRef<TrackDeleteModalComponent>);
@@ -47,6 +49,8 @@ export class TrackDeleteModalComponent {
 
   public onConfirm(): void {
     this.deleting = true;
+
+    this.checkAndStopPlaybackIfNeeded();
 
     if (this.data.bulk) {
       this.dialogRef.close(true);
@@ -79,6 +83,26 @@ export class TrackDeleteModalComponent {
 
   public onCancel(): void {
     this.dialogRef.close(false);
+  }
+
+  private checkAndStopPlaybackIfNeeded(): void {
+    const currentTrack = this.audioService.getCurrentTrack();
+
+    if (!currentTrack) {
+      return;
+    }
+
+    // For single track deletion
+    if (this.data.track && currentTrack.id === this.data.track.id) {
+      console.log('Deleting currently playing track, stopping playback');
+      this.audioService.reset();
+    }
+
+    // For bulk track deletion
+    if (this.data.bulk && this.data.trackIds && this.data.trackIds.includes(currentTrack.id)) {
+      console.log('Deleting currently playing track in bulk operation, stopping playback');
+      this.audioService.reset();
+    }
   }
 
   public get title(): string {

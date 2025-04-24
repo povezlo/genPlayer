@@ -61,9 +61,10 @@
           aria-label="Genre selection">
           <mat-chip
             *ngFor="let genre of genresControl?.value"
+            [removable]="true"
             (removed)="removeGenre(genre)">
             {{ genre }}
-            <button matChipRemove>
+            <button matChipRemove aria-label="Remove genre">
               <mat-icon>cancel</mat-icon>
             </button>
           </mat-chip>

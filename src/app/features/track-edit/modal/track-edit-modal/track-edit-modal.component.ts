@@ -11,7 +11,7 @@ import {
 } from '@angular/material/dialog';
 import {TestIdDirective, ToastService} from '../../../../shared';
 import {finalize} from 'rxjs/operators';
-import {MatChip, MatChipInputEvent, MatChipSet} from '@angular/material/chips';
+import {MatChip, MatChipInputEvent, MatChipRemove, MatChipSet} from '@angular/material/chips';
 import {MatProgressSpinner} from '@angular/material/progress-spinner';
 import {NgForOf, NgIf} from '@angular/common';
 import {MatError, MatFormField, MatLabel} from '@angular/material/form-field';
@@ -43,6 +43,7 @@ interface DialogData {
     NgForOf,
     MatChipSet,
     MatChip,
+    MatChipRemove,
     MatIcon,
     MatError,
     MatDialogActions,
