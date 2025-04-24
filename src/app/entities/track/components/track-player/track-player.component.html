@@ -13,7 +13,6 @@
     <button
       mat-icon-button
       class="close-button"
-      style="background: #898989"
       (click)="onClosePlayer()">
       <mat-icon>close</mat-icon>
     </button>
@@ -43,13 +42,20 @@
     <div class="time-display">{{ formatTime(audioState.duration) }}</div>
 
     <div class="volume-control">
-      <mat-icon style="color: white">{{ audioState.volume > 0 ? 'volume_up' : 'volume_off' }}</mat-icon>
+      <mat-icon
+        style="color: white"
+        (click)="toggleMute()"
+        class="volume-icon"
+        [testId]="'volume-toggle-' + track.id">
+        {{ audioState.volume > 0 ? 'volume_up' : 'volume_off' }}
+      </mat-icon>
       <input
         type="range"
         min="0"
         max="1"
         step="0.01"
         [value]="audioState.volume"
+        [testId]="'volume-slider-' + track.id"
         (input)="onVolumeChange($event)">
     </div>
   </div>
@@ -58,23 +64,26 @@
     <div
       #waveformRef
       class="waveform"
-      [class.loading]="!waveformReady"></div>
+      [class.loading]="!waveformReady">
+    </div>
 
     <div class="loading-overlay" *ngIf="!waveformReady">
       <mat-spinner diameter="30"></mat-spinner>
     </div>
 
-    <!-- Индикатор текущей позиции -->
+    <div class="error-message" *ngIf="audioState?.error">
+      {{ audioState.error }}
+    </div>
+
     <div
       *ngIf="waveformReady"
       class="position-indicator"
       [style.left.%]="progressPercent"></div>
   </div>
 
-  <!-- Информация о воспроизведении -->
   <div class="playback-info" *ngIf="waveformReady">
     <div class="playback-stats">
-      <span class="playback-label">Current position:</span>
+      <span class="playback-label">Duration:</span>
       <span class="playback-value">{{ formatTime(audioState.currentTime) }} / {{ formatTime(audioState.duration) }}</span>
     </div>
   </div>

@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, OnInit} from '@angular/core';
+import {ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, inject, Inject, OnInit} from '@angular/core';
 import {GenreService, Track, TrackService} from '../../../../entities';
 import {FormBuilder, FormGroup, ReactiveFormsModule, Validators} from '@angular/forms';
 import {COMMA, ENTER} from '@angular/cdk/keycodes';
@@ -19,6 +19,7 @@ import {MatInput} from '@angular/material/input';
 import {MatOption, MatSelect} from '@angular/material/select';
 import {MatIcon} from '@angular/material/icon';
 import {MatButton} from '@angular/material/button';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 
 
 interface DialogData {
@@ -59,15 +60,14 @@ export class TrackEditModalComponent implements OnInit {
   public submitting = false;
   public readonly separatorKeysCodes = [ENTER, COMMA] as const;
 
-  constructor(
-    private fb: FormBuilder,
-    private trackService: TrackService,
-    private genreService: GenreService,
-    private dialogRef: MatDialogRef<TrackEditModalComponent>,
-    private toast: ToastService,
-    private cdr: ChangeDetectorRef,
-    @Inject(MAT_DIALOG_DATA) public data: DialogData
-  ) {}
+  private fb = inject(FormBuilder);
+  private trackService = inject(TrackService);
+  private genreService = inject(GenreService);
+  private dialogRef = inject(MatDialogRef<TrackEditModalComponent>);
+  private toast = inject(ToastService);
+  private cdr = inject(ChangeDetectorRef);
+  private destroyRef = inject(DestroyRef);
+  public data = inject(MAT_DIALOG_DATA);
 
   public ngOnInit(): void {
     this.initForm();
@@ -92,7 +92,9 @@ export class TrackEditModalComponent implements OnInit {
       .pipe(finalize(() => {
         this.loading = false;
         this.cdr.markForCheck();
-      }))
+      }),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: (genres) => {
           this.genres = genres;
@@ -141,7 +143,9 @@ export class TrackEditModalComponent implements OnInit {
       .pipe(finalize(() => {
         this.submitting = false;
         this.cdr.markForCheck();
-      }))
+      }),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: (track) => {
           this.toast.success(`Track "${track.title}" updated successfully`);

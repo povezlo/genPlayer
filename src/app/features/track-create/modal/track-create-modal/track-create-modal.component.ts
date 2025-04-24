@@ -56,8 +56,7 @@ export class TrackCreateModalComponent implements OnInit {
   private destroyRef = inject(DestroyRef);
   private toast = inject(ToastService);
 
-  constructor(private dialogRef: MatDialogRef<TrackCreateModalComponent>) {
-  }
+  constructor(private dialogRef: MatDialogRef<TrackCreateModalComponent>) {}
 
   public ngOnInit(): void {
     this.initForm();

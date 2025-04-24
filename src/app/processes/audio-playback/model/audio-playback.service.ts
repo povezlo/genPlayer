@@ -17,6 +17,8 @@ export interface AudioState {
 })
 export class AudioPlaybackService {
   private audioElement: HTMLAudioElement | null = null;
+  private isPlaybackInProgress = false; // Flag to prevent multiple playback attempts
+
   private audioStateSubject = new BehaviorSubject<AudioState>({
     track: null,
     isPlaying: false,
@@ -34,12 +36,29 @@ export class AudioPlaybackService {
   }
 
   private initAudio(): void {
+    // Clean up previous instance
+    if (this.audioElement) {
+      this.cleanupAudioElement();
+    }
+
     this.audioElement = new Audio();
 
-    this.audioElement.addEventListener('timeupdate', this.onTimeUpdate.bind(this));
-    this.audioElement.addEventListener('ended', this.onEnded.bind(this));
-    this.audioElement.addEventListener('loadedmetadata', this.onLoaded.bind(this));
-    this.audioElement.addEventListener('error', this.onError.bind(this));
+    // Создадим обработчики событий как отдельные функции, чтобы их можно было удалить
+    this.handleTimeUpdate = this.handleTimeUpdate.bind(this);
+    this.handleEnded = this.handleEnded.bind(this);
+    this.handleLoaded = this.handleLoaded.bind(this);
+    this.handleError = this.handleError.bind(this);
+    this.handleCanPlay = this.handleCanPlay.bind(this);
+    this.handleLoadedData = this.handleLoadedData.bind(this);
+    this.handleCanPlayThrough = this.handleCanPlayThrough.bind(this);
+
+    this.audioElement.addEventListener('timeupdate', this.handleTimeUpdate);
+    this.audioElement.addEventListener('ended', this.handleEnded);
+    this.audioElement.addEventListener('loadedmetadata', this.handleLoaded);
+    this.audioElement.addEventListener('error', this.handleError);
+    this.audioElement.addEventListener('canplay', this.handleCanPlay);
+    this.audioElement.addEventListener('loadeddata', this.handleLoadedData);
+    this.audioElement.addEventListener('canplaythrough', this.handleCanPlayThrough);
 
     const savedVolume = localStorage.getItem('audioVolume');
     if (savedVolume) {
@@ -49,7 +68,95 @@ export class AudioPlaybackService {
     }
   }
 
+  // Обработчики событий аудио как отдельные методы
+  private handleTimeUpdate(): void {
+    if (!this.audioElement) return;
+    this.updateState({ currentTime: this.audioElement.currentTime });
+  }
+
+  private handleEnded(): void {
+    this.updateState({ isPlaying: false, currentTime: 0 });
+  }
+
+  private handleLoaded(): void {
+    if (!this.audioElement) return;
+    this.updateState({ duration: this.audioElement.duration });
+  }
+
+  private handleError(event: any): void {
+    // Получим больше информации об ошибке
+    let errorMessage = 'Неизвестная ошибка аудио';
+
+    if (this.audioElement && this.audioElement.error) {
+      const mediaError = this.audioElement.error;
+      switch (mediaError.code) {
+        case MediaError.MEDIA_ERR_ABORTED:
+          errorMessage = 'Воспроизведение прервано пользователем';
+          break;
+        case MediaError.MEDIA_ERR_NETWORK:
+          errorMessage = 'Сетевая ошибка при загрузке аудио';
+          break;
+        case MediaError.MEDIA_ERR_DECODE:
+          errorMessage = 'Ошибка декодирования аудио';
+          break;
+        case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+          errorMessage = 'Формат аудио не поддерживается';
+          break;
+        default:
+          errorMessage = `Ошибка аудио (код ${mediaError.code})`;
+      }
+      console.warn(`Audio error: ${errorMessage}`, mediaError);
+    } else {
+      console.warn('Audio error without media error information', event);
+    }
+
+    this.updateState({
+      isPlaying: false,
+      error: errorMessage
+    });
+  }
+
+  private handleCanPlay(): void {
+    console.log('Audio can play event fired');
+  }
+
+  private handleLoadedData(): void {
+    console.log('Audio loaded data event fired');
+  }
+
+  private handleCanPlayThrough(): void {
+    console.log('Audio can play through event fired, starting playback');
+    // Проверим, есть ли трек в состоянии и должны ли мы воспроизводить его
+    const state = this.audioStateSubject.value;
+    if (state.track && this.isPlaybackInProgress) {
+      this.play();
+    }
+  }
+
+  private cleanupAudioElement(): void {
+    if (!this.audioElement) return;
+
+    try {
+      this.audioElement.pause();
+      this.audioElement.src = '';
+
+      // Теперь можем правильно удалить привязанные обработчики событий
+      this.audioElement.removeEventListener('timeupdate', this.handleTimeUpdate);
+      this.audioElement.removeEventListener('ended', this.handleEnded);
+      this.audioElement.removeEventListener('loadedmetadata', this.handleLoaded);
+      this.audioElement.removeEventListener('error', this.handleError);
+      this.audioElement.removeEventListener('canplay', this.handleCanPlay);
+      this.audioElement.removeEventListener('loadeddata', this.handleLoadedData);
+      this.audioElement.removeEventListener('canplaythrough', this.handleCanPlayThrough);
+
+      this.audioElement.load(); // This ensures resources are released
+    } catch (error) {
+      console.error('Error cleaning up audio element:', error);
+    }
+  }
+
   public playTrack(track: Track): void {
+    // Всегда проверяем, есть ли у трека аудиофайл
     if (!track.audioFile) {
       this.updateState({
         error: 'Track has no audio file',
@@ -59,24 +166,34 @@ export class AudioPlaybackService {
       return;
     }
 
-    const currentState = this.audioStateSubject.value;
+    // Создаем флаг принудительного воспроизведения
+    const forcePlay = true;
 
-    // Если это тот же трек, что и сейчас, переключаем воспроизведение/паузу
-    if (currentState.track?.id === track.id) {
+    // Проверяем, является ли это тем же треком, что уже воспроизводится
+    const currentState = this.audioStateSubject.value;
+    const isSameTrack = currentState.track?.id === track.id;
+
+    // Если это тот же трек, просто переключаем воспроизведение/паузу
+    if (isSameTrack && !forcePlay) {
       this.togglePlayPause();
       return;
     }
 
-    // Если уже есть аудиоэлемент, останавливаем его
-    if (this.audioElement) {
-      this.audioElement.pause();
+    // Если это новый трек или требуется принудительное воспроизведение
 
-      // Важно: нужно очистить все слушатели событий перед установкой нового источника
-      this.audioElement.onloadedmetadata = null;
-      this.audioElement.ontimeupdate = null;
-      this.audioElement.onended = null;
-      this.audioElement.onerror = null;
+    // Prevent multiple calls while playback is being set up
+    if (this.isPlaybackInProgress) {
+      console.log('Playback already in progress, ignoring call');
+      return;
     }
+
+    this.isPlaybackInProgress = true;
+
+    // Останавливаем текущее воспроизведение
+    this.stop();
+
+    // Инициализируем новый аудиоэлемент для нового трека
+    this.initAudio();
 
     // Обновляем состояние с новым треком
     this.updateState({
@@ -87,40 +204,44 @@ export class AudioPlaybackService {
       error: null
     });
 
-    // Формируем полный URL к аудиофайлу
+    // Получаем полный URL к аудиофайлу
     const audioFileUrl = this.getFullAudioUrl(track.audioFile);
-
     console.log('Loading audio from URL:', audioFileUrl);
 
-    // Создаем новый аудиоэлемент для каждого трека
-    this.audioElement = new Audio(audioFileUrl);
+    // Устанавливаем источник для аудиоэлемента
+    if (this.audioElement) {
+      // Сбрасываем возможные состояния ошибки
+      this.updateState({ error: null });
 
-    // Повторно привязываем обработчики событий
-    this.audioElement.addEventListener('timeupdate', this.onTimeUpdate.bind(this));
-    this.audioElement.addEventListener('ended', this.onEnded.bind(this));
-    this.audioElement.addEventListener('loadedmetadata', this.onLoaded.bind(this));
-    this.audioElement.addEventListener('error', this.onError.bind(this));
+      try {
+        this.audioElement.src = audioFileUrl;
+        this.audioElement.load();
 
-    // Устанавливаем громкость из текущего состояния
-    this.audioElement.volume = this.audioStateSubject.value.volume;
+        // Явно запускаем воспроизведение после загрузки
+        this.audioElement.oncanplaythrough = () => {
+          console.log('Audio can play through event fired, starting playback');
+          // Важно: для нового трека всегда запускаем воспроизведение
+          this.play();
+          // Удаляем обработчик после однократного срабатывания
+          this.audioElement!.oncanplaythrough = null;
+        };
+      } catch (error) {
+        console.error('Error setting audio source:', error);
+        this.updateState({
+          error: 'Ошибка при установке источника аудио',
+          isPlaying: false
+        });
+        this.isPlaybackInProgress = false;
+      }
+    }
 
-    // Дополнительные проверки для диагностики
-    this.audioElement.addEventListener('canplay', () => {
-      console.log('Audio can play event fired');
-    });
-
-    this.audioElement.addEventListener('loadeddata', () => {
-      console.log('Audio loaded data event fired');
-    });
-
-    // Проверяем загрузку файла
-    this.audioElement.addEventListener('canplaythrough', () => {
-      console.log('Audio can play through event fired, starting playback');
-      this.play();
-    });
-
-    // Начинаем загрузку файла
-    this.audioElement.load();
+    // Сбрасываем флаг после таймаута, если воспроизведение все еще не началось
+    setTimeout(() => {
+      if (this.isPlaybackInProgress) {
+        console.log('Playback flag reset after timeout');
+        this.isPlaybackInProgress = false;
+      }
+    }, 5000);
   }
 
   public togglePlayPause(): void {
@@ -128,7 +249,7 @@ export class AudioPlaybackService {
       return;
     }
 
-    // Проверяем, загружен ли аудиофайл
+    // Check if the audio is ready to play
     if (this.audioElement.readyState === 0) {
       console.error('Audio element is not loaded properly');
       this.updateState({
@@ -148,7 +269,7 @@ export class AudioPlaybackService {
   public play(): void {
     if (!this.audioElement) return;
 
-    // Проверяем, есть ли источник у аудиоэлемента
+    // Check if there's a source set
     if (!this.audioElement.src) {
       console.error('No audio source set');
       this.updateState({
@@ -158,7 +279,7 @@ export class AudioPlaybackService {
       return;
     }
 
-    // Сбрасываем состояние ошибки перед началом воспроизведения
+    // Reset error state
     this.updateState({ error: null });
 
     console.log('Attempting to play audio source:', this.audioElement.src);
@@ -170,13 +291,18 @@ export class AudioPlaybackService {
       playPromise.then(() => {
         console.log('Audio playback started successfully');
         this.updateState({ isPlaying: true });
+        this.isPlaybackInProgress = false; // сбрасываем флаг только когда воспроизведение началось
       }).catch(error => {
         console.error('Error playing audio:', error);
         this.updateState({
           isPlaying: false,
           error: `Failed to play audio: ${error.message || 'Unknown error'}`
         });
+        this.isPlaybackInProgress = false;
       });
+    } else {
+      // Если promise не определен (старые браузеры), сбрасываем флаг сразу
+      this.isPlaybackInProgress = false;
     }
   }
 
@@ -193,13 +319,18 @@ export class AudioPlaybackService {
     try {
       this.audioElement.pause();
       this.audioElement.src = '';
-      this.audioElement.load();
-      this.audioElement.currentTime = 0;
+
+      try {
+        this.audioElement.load();
+      } catch (loadError) {
+        console.warn('Non-critical error when loading empty audio source:', loadError);
+      }
 
       this.updateState({
         isPlaying: false,
         currentTime: 0,
-        track: null
+        track: null,
+        error: null
       });
     } catch (error) {
       console.error('Error stopping audio:', error);
@@ -209,8 +340,15 @@ export class AudioPlaybackService {
   public seek(time: number): void {
     if (!this.audioElement) return;
 
-    this.audioElement.currentTime = time;
-    this.updateState({ currentTime: time });
+    try {
+      this.audioElement.currentTime = time;
+      this.updateState({ currentTime: time });
+    } catch (error) {
+      console.error('Error seeking audio:', error);
+      this.updateState({
+        error: 'Ошибка при перемотке аудио',
+      });
+    }
   }
 
   public setVolume(volume: number): void {
@@ -218,10 +356,13 @@ export class AudioPlaybackService {
 
     volume = Math.max(0, Math.min(1, volume));
 
-    this.audioElement.volume = volume;
-    this.updateState({ volume });
-
-    localStorage.setItem('audioVolume', volume.toString());
+    try {
+      this.audioElement.volume = volume;
+      this.updateState({ volume });
+      localStorage.setItem('audioVolume', volume.toString());
+    } catch (error) {
+      console.error('Error setting volume:', error);
+    }
   }
 
   public getCurrentTrack(): Track | null {
@@ -232,34 +373,8 @@ export class AudioPlaybackService {
     return this.audioStateSubject.value.track?.id === trackId;
   }
 
-  private onTimeUpdate(): void {
-    if (!this.audioElement) return;
-
-    this.updateState({
-      currentTime: this.audioElement.currentTime
-    });
-  }
-
-  private onEnded(): void {
-    this.updateState({
-      isPlaying: false,
-      currentTime: 0
-    });
-  }
-
-  private onLoaded(): void {
-    if (!this.audioElement) return;
-
-    this.updateState({
-      duration: this.audioElement.duration
-    });
-  }
-
-  private onError(event: ErrorEvent): void {
-    console.error('Audio error:', event);
-    this.updateState({
-      isPlaying: false
-    });
+  public isPlaying(): boolean {
+    return this.audioStateSubject.value.isPlaying;
   }
 
   private updateState(partialState: Partial<AudioState>): void {
@@ -276,31 +391,14 @@ export class AudioPlaybackService {
     return this.apiConfig.getUrl(`files/${audioFilePath}`);
   }
 
-  public isPlaying(): boolean {
-    return this.audioStateSubject.value.isPlaying;
-  }
-
-// Метод для полной очистки и сброса аудиоплеера
   public reset(): void {
-    if (this.audioElement) {
-      this.audioElement.pause();
-      this.audioElement.src = '';
-      this.audioElement.load();
+    this.isPlaybackInProgress = false;
+    this.cleanupAudioElement();
 
-      // Сбрасываем все слушатели событий
-      this.audioElement.onloadedmetadata = null;
-      this.audioElement.ontimeupdate = null;
-      this.audioElement.onended = null;
-      this.audioElement.onerror = null;
+    // Create a new audio element
+    this.initAudio();
 
-      // Удаляем ссылку на аудиоэлемент
-      this.audioElement = null;
-
-      // Создаем новый аудиоэлемент
-      this.initAudio();
-    }
-
-    // Сбрасываем состояние
+    // Reset state
     this.updateState({
       track: null,
       isPlaying: false,

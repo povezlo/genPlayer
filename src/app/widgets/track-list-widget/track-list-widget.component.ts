@@ -50,6 +50,7 @@ export class TrackListWidgetComponent implements OnInit {
   public genres: string[] = [];
   public artists: string[] = [];
   public loading = false;
+  public submitting = false;
   public pagination = {
     page: 0,
     limit: 10,
@@ -82,6 +83,15 @@ export class TrackListWidgetComponent implements OnInit {
     this.fetchTracks();
     this.loadGenres();
     this.loadArtists();
+
+    this.trackService.getTracksCache()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(tracks => {
+        if (tracks.length > 0) {
+          this.applyTrackFilters(tracks);
+          this.cdr.markForCheck();
+        }
+      });
   }
 
   private setupSearchDebounce(): void {
@@ -189,7 +199,6 @@ export class TrackListWidgetComponent implements OnInit {
 
     dialogRef.afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(result => {
       if (result) {
-        this.fetchTracks();
         this.showSnackBar('Track created successfully');
       }
     });
@@ -204,7 +213,6 @@ export class TrackListWidgetComponent implements OnInit {
 
     dialogRef.afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(result => {
       if (result) {
-        this.fetchTracks();
         this.showSnackBar('Track updated successfully');
       }
     });
@@ -232,7 +240,6 @@ export class TrackListWidgetComponent implements OnInit {
 
     dialogRef.afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(result => {
       if (result) {
-        this.fetchTracks();
         this.showSnackBar('File uploaded successfully');
       }
     });
@@ -275,11 +282,15 @@ export class TrackListWidgetComponent implements OnInit {
 
     dialogRef.afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(result => {
       if (result) {
-        this.loading = true;
-        this.trackService.deleteTracks(Array.from(this.selectedTracks))
+        this.submitting = true;
+
+        // After confirming, apply optimistic updates
+        const trackIdsToDelete = Array.from(this.selectedTracks);
+
+        this.trackService.deleteTracks(trackIdsToDelete)
           .pipe(
             finalize(() => {
-              this.loading = false;
+              this.submitting = false;
               this.cdr.markForCheck();
             }),
             takeUntilDestroyed(this.destroyRef),
@@ -287,10 +298,14 @@ export class TrackListWidgetComponent implements OnInit {
           .subscribe({
             next: (response) => {
               this.selectedTracks.clear();
-              this.fetchTracks();
-              this.showSnackBar(`Successfully deleted ${response.success.length} tracks`);
+
+              // No need to fetch tracks - optimistic updates will handle the UI
+              const successMessage = `Successfully deleted ${response.success.length} tracks`;
+              this.showSnackBar(successMessage);
+
               if (response.failed.length > 0) {
-                this.showSnackBar(`Failed to delete ${response.failed.length} tracks`, 'error');
+                const errorMessage = `Failed to delete ${response.failed.length} tracks`;
+                this.showSnackBar(errorMessage, 'error');
               }
             },
             error: (error) => {
@@ -303,7 +318,20 @@ export class TrackListWidgetComponent implements OnInit {
   }
 
   public onTrackPlay(track: Track): void {
-    this.currentPlayingTrack = track;
+    console.log('Track play requested:', track.title);
+
+    // Check if this is the same track that's already playing
+    const isSameTrack = this.currentPlayingTrack && this.currentPlayingTrack.id === track.id;
+
+    // If it's a different track, switch to the new one
+    if (!isSameTrack) {
+      console.log('Switching to new track:', track.title);
+      this.currentPlayingTrack = track;
+
+      // Make sure the audio service knows about the new track
+      this.audioService.playTrack(track);
+    }
+
     this.cdr.markForCheck();
   }
 
@@ -316,6 +344,70 @@ export class TrackListWidgetComponent implements OnInit {
     // Убираем ссылку на текущий трек, чтобы скрыть плеер
     this.currentPlayingTrack = null;
     this.cdr.markForCheck();
+  }
+
+  private applyTrackFilters(tracks: Track[]): void {
+    // Filter by genre if selected
+    let filteredTracks = tracks;
+    if (this.selectedGenre) {
+      filteredTracks = filteredTracks.filter(track =>
+        track.genres.includes(this.selectedGenre)
+      );
+    }
+
+    // Filter by artist if selected
+    if (this.selectedArtist) {
+      filteredTracks = filteredTracks.filter(track =>
+        track.artist === this.selectedArtist
+      );
+    }
+
+    // Filter by search text
+    if (this.searchText) {
+      const searchLower = this.searchText.toLowerCase();
+      filteredTracks = filteredTracks.filter(track =>
+        track.title.toLowerCase().includes(searchLower) ||
+        track.artist.toLowerCase().includes(searchLower) ||
+        (track.album && track.album.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Apply sorting
+    filteredTracks.sort((a, b) => {
+      let valA: any, valB: any;
+
+      switch (this.sortField) {
+        case 'title':
+          valA = a.title.toLowerCase();
+          valB = b.title.toLowerCase();
+          break;
+        case 'artist':
+          valA = a.artist.toLowerCase();
+          valB = b.artist.toLowerCase();
+          break;
+        case 'album':
+          valA = (a.album || '').toLowerCase();
+          valB = (b.album || '').toLowerCase();
+          break;
+        case 'createdAt':
+        default:
+          valA = new Date(a.createdAt).getTime();
+          valB = new Date(b.createdAt).getTime();
+          break;
+      }
+
+      const compareResult = valA < valB ? -1 : valA > valB ? 1 : 0;
+      return this.sortOrder === 'asc' ? compareResult : -compareResult;
+    });
+
+    // Handle pagination
+    const startIndex = this.pagination.page * this.pagination.limit;
+    const endIndex = startIndex + this.pagination.limit;
+    this.tracks = filteredTracks.slice(startIndex, endIndex);
+
+    // Update pagination metadata
+    this.pagination.total = filteredTracks.length;
+    this.pagination.totalPages = Math.ceil(filteredTracks.length / this.pagination.limit);
   }
 
   private showSnackBar(message: string, type: 'success' | 'error' = 'success'): void {

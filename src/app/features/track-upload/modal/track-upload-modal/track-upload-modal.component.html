@@ -42,7 +42,7 @@
 
           <div class="file-info" *ngIf="file">
             <mat-icon>music_note</mat-icon>
-            <span>{{ file.name }}</span>
+            <span class="file-name">{{ file.name }}</span>
             <span class="file-size">({{ (file.size / 1024 / 1024).toFixed(2) }} MB)</span>
           </div>
         </div>

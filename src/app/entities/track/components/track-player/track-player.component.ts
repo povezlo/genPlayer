@@ -42,14 +42,14 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
   public wavesurfer: WaveSurfer | null = null;
   public waveformReady = false;
   public dragging = false;
+  private lastVolume: number = 0;
+  private initializationInProgress = false;
+  private componentDestroyed = false;
 
   private destroyRef = inject(DestroyRef);
   private apiConfig = inject(ApiConfigService);
-
-  constructor(
-    private audioService: AudioPlaybackService,
-    private cdr: ChangeDetectorRef
-  ) {}
+  private audioService = inject(AudioPlaybackService);
+  private cdr = inject(ChangeDetectorRef);
 
   @HostListener('window:beforeunload')
   public beforeUnload(): void {
@@ -59,58 +59,109 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   public ngOnInit(): void {
+    this.audioState = {
+      track: null,
+      isPlaying: false,
+      currentTime: 0,
+      duration: 0,
+      volume: 1,
+      error: null
+    };
+
     this.audioService.audioState$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(state => {
-        console.log('Audio state in player:', state);
-        this.audioState = state;
+        if (!this.audioState.track || state.track?.id === this.track.id) {
+          this.audioState = state;
 
-        // Обновляем состояние wavesurfer только если трек совпадает и загружен
-        if (this.wavesurfer && this.waveformReady && !this.dragging) {
-          if (state.track?.id === this.track.id && state.duration > 0) {
-            const position = state.currentTime / Math.max(state.duration, 0.1);
-
-            try {
-              if (position >= 0 && position <= 1) {
-                this.wavesurfer.seekTo(position);
+          if (this.wavesurfer && this.waveformReady && !this.dragging) {
+            if (state.track?.id === this.track.id && state.duration > 0) {
+              try {
+                const position = state.currentTime / Math.max(state.duration, 0.1);
+                if (position >= 0 && position <= 1) {
+                  this.wavesurfer.seekTo(position);
+                }
+              } catch (error) {
+                console.error('Error seeking wavesurfer:', error);
               }
-            } catch (error) {
-              console.error('Error seeking wavesurfer:', error);
             }
           }
-        }
 
-        this.cdr.markForCheck();
+          this.cdr.markForCheck();
+        }
       });
   }
 
-
   public ngAfterViewInit(): void {
-    this.initWaveSurfer();
+    setTimeout(async () => {
+      await this.initWaveSurfer();
+    });
   }
 
   public ngOnDestroy(): void {
-    if (this.wavesurfer) {
-      this.wavesurfer.pause();
-      this.wavesurfer.destroy();
-      this.wavesurfer = null;
-    }
+    this.componentDestroyed = true;
+    this.destroyWaveSurfer();
 
-    if (this.audioState.isPlaying && this.audioState.track?.id === this.track.id) {
+    if (this.audioState?.isPlaying && this.audioState?.track?.id === this.track.id) {
       this.audioService.stop();
     }
   }
 
-  private initWaveSurfer(): void {
+  private destroyWaveSurfer(): void {
+    if (this.wavesurfer) {
+      try {
+        this.wavesurfer.pause();
+        this.wavesurfer.destroy();
+      } catch (error) {
+        console.error('Error destroying WaveSurfer instance:', error);
+      }
+      this.wavesurfer = null;
+      this.waveformReady = false;
+    }
+
+    if (this.waveformRef?.nativeElement) {
+      const container = this.waveformRef.nativeElement;
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
+      }
+    }
+  }
+
+  private async initWaveSurfer(): Promise<void> {
+    if (this.componentDestroyed) {
+      console.log('WaveSurfer already initialized, skipping');
+      return;
+    }
+
+    if (this.initializationInProgress) {
+      console.log('Инициализация WaveSurfer уже выполняется, пропускаем');
+      return;
+    }
+
+    this.initializationInProgress = true;
+
     if (!this.track.audioFile) {
       console.error('Track has no audio file, cannot initialize wavesurfer');
       return;
     }
 
+    if (!this.waveformRef?.nativeElement) {
+      this.initializationInProgress = false;
+      console.error('Waveform element reference is not available');
+      return;
+    }
+
+    this.destroyWaveSurfer();
+
     const audioFileUrl = this.getFullAudioUrl(this.track.audioFile);
     console.log('WaveSurfer loading from URL:', audioFileUrl);
 
     try {
+      const container = this.waveformRef.nativeElement;
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
+      }
+
       this.wavesurfer = WaveSurfer.create({
         container: this.waveformRef.nativeElement,
         height: 80,
@@ -122,19 +173,31 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
         barGap: 1,
         barRadius: 2,
         normalize: true,
-        minPxPerSec: 50,
         fillParent: true,
-        backend: 'WebAudio'
+        backend: 'WebAudio',
+        hideScrollbar: true,
+        interact: false,
       });
 
       this.wavesurfer.on('ready', () => {
         console.log('WaveSurfer is ready');
         this.waveformReady = true;
+
+        // Set initial position if already playing
+        if (this.audioState?.currentTime > 0 && this.audioState?.duration > 0) {
+          const position = this.audioState.currentTime / this.audioState.duration;
+          this.wavesurfer?.seekTo(position);
+        }
+
+        this.initializationInProgress = false;
         this.cdr.markForCheck();
       });
 
       this.wavesurfer.on('error', error => {
         console.error('WaveSurfer error:', error);
+        this.waveformReady = false;
+        this.initializationInProgress = false;
+        this.cdr.markForCheck();
       });
 
       this.wavesurfer.on('interaction', () => {
@@ -153,9 +216,19 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
         }, 100);
       });
 
-      this.wavesurfer.load(audioFileUrl);
+      await this.wavesurfer.load(audioFileUrl);
+
+      setTimeout(() => {
+        if (!this.waveformReady && !this.componentDestroyed) {
+          console.warn('Таймаут загрузки WaveSurfer - возможно, проблемы с загрузкой аудиофайла');
+          this.initializationInProgress = false;
+        }
+      }, 10000);
     } catch (error) {
       console.error('Error creating WaveSurfer:', error);
+      this.waveformReady = false;
+      this.initializationInProgress = false;
+      this.cdr.markForCheck();
     }
   }
 
@@ -169,13 +242,7 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
 
   public onClosePlayer(): void {
     this.audioService.stop();
-
-    if (this.wavesurfer) {
-      this.wavesurfer.pause();
-      if (typeof this.wavesurfer.stop === 'function') {
-        this.wavesurfer.stop();
-      }
-    }
+    this.destroyWaveSurfer();
     this.close.emit();
   }
 
@@ -187,10 +254,27 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   }
 
+  public toggleMute(): void {
+    if (this.audioState.volume > 0) {
+      // Store the current volume before muting
+      this.lastVolume = this.audioState.volume;
+      this.audioService.setVolume(0);
+    } else {
+      // Restore the previous volume, or default to 0.7 if it was 0
+      const volumeToRestore = this.lastVolume || 0.7;
+      this.audioService.setVolume(volumeToRestore);
+    }
+  }
+
   public onVolumeChange(event: Event): void {
     const input = event.target as HTMLInputElement;
     const volume = parseFloat(input.value);
     this.audioService.setVolume(volume);
+
+    // Update the lastVolume if we're not muted
+    if (volume > 0) {
+      this.lastVolume = volume;
+    }
   }
 
   public onTimelineClick(event: MouseEvent): void {
@@ -205,11 +289,11 @@ export class TrackPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   public get isPlaying(): boolean {
-    return this.audioState.isPlaying && this.audioState.track?.id === this.track.id;
+    return this.audioState?.isPlaying && this.audioState?.track?.id === this.track.id;
   }
 
   public get progressPercent(): number {
-    if (!this.audioState.duration) return 0;
+    if (!this.audioState?.duration) return 0;
     return (this.audioState.currentTime / this.audioState.duration) * 100;
   }
 

@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject} from '@angular/core';
+import {ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, inject, Inject} from '@angular/core';
 import {Track, TrackService} from '../../../../entities';
 import {
   MAT_DIALOG_DATA,
@@ -13,6 +13,7 @@ import {NgIf} from '@angular/common';
 import {MatIcon} from '@angular/material/icon';
 import {MatButton} from '@angular/material/button';
 import {MatProgressSpinner} from '@angular/material/progress-spinner';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 
 interface DialogData {
   track: Track;
@@ -40,6 +41,7 @@ export class TrackUploadModalComponent {
   public file: File | null = null;
   public error: string | null = null;
   public hasExistingFile = false;
+  public uploadProgress = 0;
 
   constructor(
     private trackService: TrackService,
@@ -50,6 +52,7 @@ export class TrackUploadModalComponent {
   ) {
     this.hasExistingFile = !!this.data.track.audioFile;
   }
+  private destroyRef = inject(DestroyRef);
 
   public onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -93,8 +96,17 @@ export class TrackUploadModalComponent {
     this.trackService.uploadFile(this.data.track.id, this.file)
       .pipe(finalize(() => {
         this.uploading = false;
-        this.cdr.markForCheck();
-      }))
+          this.uploadProgress = 100; // Complete the progress bar
+          this.cdr.markForCheck();
+
+          // Reset progress after a short delay
+          setTimeout(() => {
+            this.uploadProgress = 0;
+            this.cdr.markForCheck();
+          }, 1000);
+      }),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: (track) => {
           this.toast.success('File uploaded successfully');
@@ -113,9 +125,11 @@ export class TrackUploadModalComponent {
 
     this.trackService.deleteFile(this.data.track.id)
       .pipe(finalize(() => {
-        this.uploading = false;
-        this.cdr.markForCheck();
-      }))
+          this.uploading = false;
+          this.cdr.markForCheck();
+      }),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: (track) => {
           this.toast.success('File deleted successfully');
@@ -149,5 +163,20 @@ export class TrackUploadModalComponent {
   private isAudioFile(file: File): boolean {
     const validTypes = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp3', 'audio/x-wav'];
     return validTypes.includes(file.type);
+  }
+
+  private simulateProgress(): void {
+    this.uploadProgress = 0;
+    const interval = setInterval(() => {
+      if (this.uploadProgress >= 90) {
+        clearInterval(interval);
+      } else {
+        // Increment faster at first, then slow down
+        const increment = this.uploadProgress < 30 ? 10 :
+          this.uploadProgress < 60 ? 5 : 2;
+        this.uploadProgress += increment;
+        this.cdr.markForCheck();
+      }
+    }, 300);
   }
 }

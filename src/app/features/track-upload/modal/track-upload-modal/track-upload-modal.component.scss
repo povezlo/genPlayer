@@ -6,6 +6,7 @@
     padding: 10px;
     background-color: #f5f5f5;
     border-radius: 4px;
+    color: black;
   }
 
   .upload-section {
@@ -78,6 +79,12 @@
         mat-icon {
           margin-right: 8px;
           color: #4caf50;
+        }
+
+        .file-name {
+          color: black;
+          display: flex;
+          width: 200px;
         }
 
         .file-size {

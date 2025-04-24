@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, Inject} from '@angular/core';
+import {ChangeDetectionStrategy, Component, DestroyRef, inject, Inject} from '@angular/core';
 import {Track, TrackService} from '../../../../entities';
 import {finalize} from 'rxjs/operators';
 import {
@@ -12,6 +12,7 @@ import {TestIdDirective, ToastService} from '../../../../shared';
 import {MatButton} from '@angular/material/button';
 import {MatProgressSpinner} from '@angular/material/progress-spinner';
 import {NgIf} from '@angular/common';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 
 interface DialogData {
   track?: Track;
@@ -38,18 +39,16 @@ interface DialogData {
 export class TrackDeleteModalComponent {
   public deleting = false;
 
-  constructor(
-    private trackService: TrackService,
-    private dialogRef: MatDialogRef<TrackDeleteModalComponent>,
-    private toast: ToastService,
-    @Inject(MAT_DIALOG_DATA) public data: DialogData
-  ) {}
+  private trackService = inject(TrackService);
+  private toast = inject(ToastService);
+  private destroyRef = inject(DestroyRef);
+  private dialogRef = inject(MatDialogRef<TrackDeleteModalComponent>);
+  public data= inject(MAT_DIALOG_DATA);
 
   public onConfirm(): void {
     this.deleting = true;
 
     if (this.data.bulk) {
-      // Для массового удаления отдельная логика в компоненте списка
       this.dialogRef.close(true);
       return;
     }
@@ -62,7 +61,9 @@ export class TrackDeleteModalComponent {
     this.trackService.deleteTrack(this.data.track.id)
       .pipe(finalize(() => {
         this.deleting = false;
-      }))
+      }),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: () => {
           this.toast.success(`Track "${this.data.track?.title}" deleted successfully`);

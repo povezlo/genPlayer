@@ -8,6 +8,11 @@
     flex-direction: column;
     gap: 16px;
     margin-bottom: 16px;
+    padding: 18px;
+    background: black;
+    border-color: var(--mdc-elevated-card-container-color, var(--mat-app-surface-container-low));
+    border-radius: var(--mdc-elevated-card-container-shape, var(--mat-app-corner-medium));
+    box-shadow: var(--mdc-elevated-card-container-elevation, var(--mat-app-level1));
 
     &-main {
       display: flex;
